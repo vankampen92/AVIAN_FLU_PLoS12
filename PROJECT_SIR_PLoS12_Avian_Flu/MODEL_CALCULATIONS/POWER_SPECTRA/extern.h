@@ -1,0 +1,11 @@
+#include "../../Include/include.Community.extern.h"
+#include "../../Include/include.Output_Variables.extern.h"
+#include "../../Include/include.Parameter_Model.extern.h"
+#include "../../Include/include.PARAMETER_SPACE.extern.h"
+#include "../../Include/include.Stochastic_Realizations.extern.h"
+#include "../../Include/include.Time_Control.extern.h"
+#include "../../Include/include.Type_Model.extern.h"
+#include "/home/dalonso/C_pro/Demos_UTLs_CPGPLOT/include.CPG.extern.h"
+#include "../../Include/include.Power_Spectra_Control.extern.h"
+#include "../../Include/include.Initial_Conditions.extern.h"
+extern Parameter_Table * P_ARG; 

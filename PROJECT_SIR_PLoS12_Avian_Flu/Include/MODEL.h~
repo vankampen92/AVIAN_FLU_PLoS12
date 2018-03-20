@@ -1,0 +1,294 @@
+#include "HEADERS.H"
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+/*                                                                           */
+/*                    EVENT-DRIVEN STOCHASTIC MODEL SIMULATIONS              */
+/*	                                                                     */
+/*                          (CONSTANT COMMUNITY SIZE)                        */
+/*                                                                           */
+/*                            David Alonso, 2004 (c)                         */
+/*                                                                           */
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+#define MODEL_VARIABLES_MAXIMUM 4   /* Number of model variables                  */
+#if defined POWER_SPECTRAL_DENSITY
+#define MODEL_PARAMETERS_MAXIMUM 36 /* 32 plus 4, if power spectra are calculated */
+#define OUTPUT_VARIABLES_MAXIMUM 20 /* 16 plus 4, if power spectra are calculated */
+#else
+#define MODEL_PARAMETERS_MAXIMUM 32 
+#define OUTPUT_VARIABLES_MAXIMUM 16 
+#endif
+
+typedef struct totalRateinfo
+{
+  double Total_Rate;
+  double max_Probability;
+}Stochastic_Rate;
+
+typedef struct Power_Spectra_Controlinfo
+{
+#include "include.Power_Spectra_Control.global.h" /* Control variable */
+  float * x;
+  float * y;
+
+  float * Frequency_Vector;
+  float * px;
+  float * py;
+
+  int mm;
+  int no_Fr;
+}Power_Spectra_Control;
+
+typedef struct Time_Controlinfo
+{
+#include "include.Time_Control.global.h" /* Control variable I_Time */
+
+  double * Time_Vector;
+
+  double ** summ;
+  double ** summ_var;
+  int * count;
+
+  double ** AVE;
+  double ** VAR;
+  double * time_DEF;
+
+  double ** Accumulated_Variable;
+
+  Stochastic_Rate * Rate;
+}Time_Control;
+
+/* Site Structure (to build a network of interconnected sites
+   such as a regular lattice or a network topology) 
+*/
+typedef struct siteinfo
+{
+  int Species_Label;
+  position Coordinate;
+  double Species_Density;
+  int n_Neighbors;
+  int * site_neighbor; 
+}site;
+
+typedef struct Parameter_Space_info
+{
+  gsl_vector * P_MAX;          /* Max and Min for each parameter */
+  gsl_vector * P_min;     
+  double A_n;                 /* Integer accuracy   */
+  double A_d;                 /* Double precision accuracy      */
+  int nPar;
+  int *I;
+  gsl_vector *Accuracy;       /* Different accuracy for each searcheable parameter */
+}Parameter_Space;
+
+typedef struct Communityinfo
+{
+  int N_V;           /* Total Virus Patch Capacity                              */
+  int N;             /* Total Patch capacity: Human Constant Population         */
+  int no_VARIABLES;  /* Number of variables needed to describe the state
+			of the system at any given time                         */
+  int * I;           /* I[0], ..., I[no_VARIABLES-1] defines the state
+			of the patch completely                                 */
+  double ratePatch;  /* Transition probability at this patch                    */
+  double * rate;     /* Transition probability for an individual at each class  */
+  double * rToI; 
+  double H_infect;
+  struct point position;  /* Patch Geographical Coordinates  */ 
+}Community;
+  
+typedef struct Parameter_Modelinfo
+{
+#include "include.Parameter_Model.global.h"
+  int No_of_Patches;
+  int MODEL_VARIABLES;
+  double Time_Scale_Unit;
+  double Beta_Effective;
+  double Imm;  /* Effective External Force of Infection */
+  int N_V;
+  int N;
+/* * * Type of Growth Model * * */
+#include "include.Type_Model.global.h"  
+}Parameter_Model;
+
+typedef struct Parameter_Tableinfo
+{  
+  /* * * Power Spectra Control * * */
+#include "include.Power_Spectra_Control.global.h" 
+  Power_Spectra_Control * PSD; 
+
+  /* * * Time_Control * * * */
+#include "include.Time_Control.global.h"
+  Time_Control * T;
+
+  /* * * Parameter_Model * * * */
+#include "include.Parameter_Model.global.h"
+  Parameter_Model * P;
+
+  /* * * Parameter_Space * * * */
+  double A_n; /* Accuracies */
+  double A_d;
+  Parameter_Space * S;
+
+  /* * * Community * * * */
+  int N_V;              /* Single Virus Patch Capacity */
+  int N;                /* Single Patch capacity: Human Constant Population     */
+  int no_Patch;         /* Number of Patches */
+  int POPULATION;       /* Total System capacity: Human Constant Population     */
+  Community ** Patch;
+
+  /* * * C P G   P L O T * * */
+#include "/home/dalonso/C_pro/Demos_UTLs_CPGPLOT/include.CPG.global.h"  
+  Parameter_CPGPLOT * CPG;
+
+  /* * * Type of Growth Model * * */
+#include "include.Type_Model.global.h"
+
+  /* * * Stochastic Realizations * * */
+#include "include.Stochastic_Realizations.global.h"
+  /* * * * * * * * * */
+  /* * * * * * * * * */
+  int MODEL_PARAMETERS;
+  char ** Name_Parameters;
+  char ** Code_Parameters;
+  double * Default_Vector_Parameters;
+  /* What follows defines a parameter sub-space within 
+     the total parameter space 
+  */
+  int SUB_MODEL_PARAMETERS;
+  int * Index;              
+  double * Vector_Parameters;
+  /* * * * * * * * * */
+  /* Model Dynamic Variables */
+  int MODEL_VARIABLES;     
+  char ** Model_Variable_Name;
+  double * Vector_Model_Variables;
+  double * Vector_Model_Variables_Stationarity;
+#include "include.Initial_Conditions.global.h"  
+  /* * * * * * * * * */
+  int * GLOBAL_I; 
+  /* * * * * * * * * */
+  int OUTPUT_VARIABLES;     
+  char ** Variable_Name;
+  double * Default_Vector_Output_Variables;
+  /* What follows defines a subset of output variables 
+     that will be saved, represented, etc 
+  */
+  int SUB_OUTPUT_VARIABLES; 
+  int * IO_VARIABLE_LIST;   
+  double * Vector_Output_Variables;
+  /* * * * * * * * * */
+}Parameter_Table;
+
+#include "../assign.h"     
+#include "../definition_OutPut_Variables.h"  
+#include "../Definition_Parameter_Space/P_A_R_A_M_E_T_E_R___S_P_A_C_E.h"
+#include "../Parameter_Table.h"  
+#include "../Community.h"  
+#include "../Population_Initialization.h"
+#include "../evolving_Parameters.h"          
+#include "../Parameter_Model.h"    
+#include "../Time_Control.h"
+#include "../IO_Functions.h"
+#include "../functions_SIR.h"
+#include "../Power_Spectra_Control.h"
+#include "main.H"
+#include "/home/dalonso/C_pro/Demos_UTLs_CPGPLOT/Parameter_CPGPLOT.h"  
+#include "../CPG_Drawing_X_Y_Drivers.h"  
+#include "../Definition_Numerical_Integration/numerical_Integration_Driver.h"
+#include "../Definition_Stochastic_Dynamics/stochastic_time_dynamics.h"
+#include "../Definition_Power_Spectra_Calculation/power_spectra_time_dynamics.h"
+#include "../ODE_Definitions/ODE_Definitions.h"
+#include "../func_PwSp_Analytic.h"
+#include "../func_SIR_AVIAN_FLU.h"
+#include "SIR_Analytic_General.h"
+
+/* In Main Functions defining the simulation models and cotroling argument Input */
+void poincareMap(int i, int j, float Pop[], int N, float x_i,float x_s, 
+		 int No_of_Points, void (*)(double,double[],double[]),
+		 double *Time, double **X);
+
+void integration_Double(float [], int S, float,float, int, void (*)(double,double[],double[]),
+		    double *, double **);
+
+/* In init_SIR.c */
+void Init_SumPop(Community *, int [], int);
+void settingParameterStruct(Parameter_Model *Par);
+void Initial_Condition(Community *, int, int);
+void changingTimeScale(Parameter_Model *Par, double TimeScale);
+void re_settingParamStruct(Parameter_Model *Par, double d_Rel, double b_Rel);
+void re_setting_Equivalent_BETA(Parameter_Model *Par, double b_0, double b_1);
+
+/* Functions in IO_SIR.c */
+void ShowVillageContent(Community *pVil, int i);
+void ShowVillage_StrainEvolution(Community *pVil, int i, double time);
+void SaveVillageContent(char Pre[], Community *pVil, int, int, double);
+void SaveTimeSeries(Community *pVil, int i, double te);
+void write_vectors(float *time, float *x, float *y, int nP);
+
+/* Functions in even_TimeSeries.c */
+void pseudoEven_timeSeries(double *Time, int **Yp, int NoP, int nPop, 
+			   float *time, float *x, float *y, int n, 
+			   float t_0, float t_1);
+void Even_timeSeries(double *Time, int **Yp, int NoP, int nPop, 
+		     float *time, float *x, float *y, int n, 
+		     float t_0, float t_1);
+void timeSeries(double *Time, int **Yp, int NoP, int nPop, 
+		float *time, float *x, float *y, int n, 
+		float t_0, float t_1);
+
+/* Function in sampling_Parameters.c */
+void sample_Parameters(Parameter_Model *P, 
+		       float *range_R, float *range_L, float *range_D);
+
+/* Function in peak_To_trough_Ratio.c */
+float peak_to_Trough_Global_Range(double *Time, int **Yp, int n);
+void peak_to_Trough_Maxims_Minims(double *Time, int **Yp, 
+				  int No, int Level,
+				  double *Time_Max, double *Time_Min, 
+				  double *Maxim, double *Minim, int *noVal);
+void saving_peak_to_Trough(double *Time_Max, double *Time_Min, 
+			   double *Maxim, double *Minim, int No);
+float peak_to_Trough_Average_Ratio(double *Maxim, double *Minim, int No);
+float Relative_Amplification_Ratio(double *Maxim, int No, int I_0);
+
+/* Functions in det_seasonal_amplif.c */
+float det_season_amplif(int MSD, Parameter_Model *Pa, float T_sup, int no_of_Maxima, int SI);
+
+/* Functions in sto_seasonal_amplif.c */
+void the_Largest_Maxima(double *Maxim, int no, int no_of_Max);
+float sto_season_amplif(int MSD, Parameter_Model *Pa, float T_sup, int no_of_Maxima, int SI);
+
+/* Function in relativeAmplification_forcing.c */
+float Relative_Amplification_Ratio_Forcing(double *Time_Max, double *Maxim, int No,
+					   int N, double f_0, double f_1,
+					   Parameter_Model *Par, int No_of_Points);
+
+/* Functions is powerSpectrum.c */
+double total_Power(float *px, int m);
+void powerSpectrum_Autocorr(float *x, float *y, int nP);
+void powerSpectrum(float *x, float *y, int nP);
+void powerSpectrum_ONE(float *x, int nP);
+void accummulating_PowerSpectrum(float *x, float *y, float *px,float *py, int n);
+void averaged_PowerSpectrum(double T, float *px, float *py, int n, int Re, int Norma);
+void averaged_ONE_PowerSpectrum(double T, float *px, int n, int Re, int Norma);
+void accummulating_ONE_PowerSpectrum(float *x, float *px, int n);
+void averaged_ONE_Spectral_Density(double T, float *px, int n, int Re, int Norma);
+void estimated_Spectral_Density(float *px, float *fr, int n);
+
+/* Functions in timeSeries_VanKampen.c */
+void timeSeries_vanKampen(double Ave_x, double Ave_y,
+			  double *Time, int **Yp, int NoP, int nPop, 
+			  float *time, float *x, float *y, int n, 
+			  float t_0, float t_1);
+
+/* Functions in autoCorr.c */
+void autocorrel(float *p, int n);
+
+/* Functions in ./Fig_eps/append_Fig_TEX.c */
+void append_Fig_TEX(FILE *F_TEX, char *name, float imm);
+
+/* In default_values.c... */
+void default_values_Measles_01();
+void default_values_Measles_02();
+void values__Measles_02_SEIR();
+void values__Measles_02_SIR();
+
+

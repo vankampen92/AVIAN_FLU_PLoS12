@@ -1,0 +1,3 @@
+int SUB_MODEL_PARAMETERS = MODEL_PARAMETERS_MAXIMUM;
+double A_n;
+double A_d;

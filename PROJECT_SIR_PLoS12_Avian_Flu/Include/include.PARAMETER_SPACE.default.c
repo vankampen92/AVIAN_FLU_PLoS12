@@ -1,0 +1,3 @@
+SUB_MODEL_PARAMETERS = 2;
+A_n = 1;
+A_d = 0.01;

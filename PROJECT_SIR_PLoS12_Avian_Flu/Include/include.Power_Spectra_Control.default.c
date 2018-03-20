@@ -1,0 +1,5 @@
+TRANSIENT = 100;
+PSD_TIMES     = 1200;
+k_Sets    = 1;
+STEP_SIZE = 14.0;
+
